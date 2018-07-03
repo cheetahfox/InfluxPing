@@ -7,6 +7,8 @@ import (
 	"net"
 	"io/ioutil"
 	"gopkg.in/yaml.v2"
+	"github.com/sparrc/go-ping"
+	"time"
 )
 
 type Config struct {
@@ -16,6 +18,7 @@ type Config struct {
 	InfluxPassword string
 	Ipv6Allowed bool
 	PtpIpPing bool
+	ProbeCount int
 	Hosts []string
 }
 
@@ -31,8 +34,9 @@ func getConfigHosts(config Config) []net.IP {
 		resovledip, err := net.LookupIP(config.Hosts[i])
 		if err != nil {
 			fmt.Printf("Unable to resovle: %s\n", config.Hosts[i])
+		} else {
+			hosts = append(hosts, resovledip[0])
 		}
-		hosts = append(hosts, resovledip[0])
 	}
 	return hosts
 }
@@ -40,11 +44,13 @@ func getConfigHosts(config Config) []net.IP {
 func main() {
 	var PingHost []net.IP
 
+	var interval time.Duration = 100 * time.Millisecond
+	var timeout time.Duration = 10000 * time.Millisecond
+
 	if len(os.Args) <= 1 {
 		log.Fatal("No Configuration file specified")
 	}
 	filename := os.Args[1]
-	fmt.Println(filename)
 	var config Config
 
 	source, err := ioutil.ReadFile(filename)
@@ -60,6 +66,27 @@ func main() {
 	PingHost = getConfigHosts(config)
 
 	for i := range(PingHost) {
-		fmt.Println(PingHost[i])
+		pinger, err := ping.NewPinger(PingHost[i].String())
+		if err != nil {
+			log.Fatal(err)
+		}
+
+		pinger.OnRecv = func(pkt *ping.Packet) {
+			fmt.Printf("%d bytes from %s: icmp_seq=%d time=%v\n", pkt.Nbytes, pkt.IPAddr, pkt.Seq, pkt.Rtt)
+		}
+
+		pinger.OnFinish = func(stats *ping.Statistics) {
+			fmt.Printf("\n--- %s ping statistics ---\n", stats.Addr)
+			fmt.Printf("%d packets transmitted, %d packets received, %v%% packet loss\n", stats.PacketsSent, stats.PacketsRecv, stats.PacketLoss)
+			fmt.Printf("round-trip min/avg/max/stddev = %v/%v/%v/%v\n", stats.MinRtt, stats.AvgRtt, stats.MaxRtt, stats.StdDevRtt)
+		}
+
+		pinger.Count    = config.ProbeCount
+		pinger.Interval = interval
+		pinger.Timeout  = timeout
+
+		pinger.SetPrivileged(true)
+
+		pinger.Run()
 	}
 }
