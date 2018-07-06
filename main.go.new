@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"log"
 	"net"
-//	"strings"
+	"strings"
 	"time"
 	"io/ioutil"
 	"os"
@@ -55,9 +55,6 @@ func main() {
 //		log.Fatal("no hosts specified")
 //	}
 //	hosts := flag.Args()
-
-	timeout = time.Second*2
-	interval = time.Second*10
 	var err error
 	var hosts []string
 	proto := "all"
@@ -77,11 +74,8 @@ func main() {
 	var config Config
 	config = startup(config)
 
-	var PingHosts []net.IP
-	PingHosts = getConfigHosts(config)
-
-	for i:= range(PingHosts) {
-		hosts = append( hosts, PingHosts[i].String())
+	for i:= range(config.Hosts) {
+		host = config.Hosts[i]
 	}
 
 
@@ -138,7 +132,7 @@ func getConfigHosts(config Config) []net.IP {
 
 
 func ResolveHost(host, ipversion string) (string, error) {
-/*	addrs, err := net.LookupHost(host)
+	addrs, err := net.LookupHost(host)
 	if err != nil || len(addrs) < 1 {
 		return "", fmt.Errorf("failed to resolve hostname to IP.")
 	}
@@ -160,8 +154,6 @@ func ResolveHost(host, ipversion string) (string, error) {
 	}
 
 	return "", fmt.Errorf("failed to resolve hostname to valid IP.")
-*/
-	return host, nil
 }
 
 func ping(host string) {

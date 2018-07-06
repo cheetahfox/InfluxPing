@@ -1,0 +1,14 @@
+influxdbserver: http://monitoring.imagestream.com:8086
+influxdb: testing
+influxusername: "josh"
+influxpassword: "fox"
+ipv6allowed: True
+ptpipping: True
+probecount: 3
+probeinterval: 30
+probetimeout: 15
+hosts:
+  - 205.159.243.5
+  - cheetahfox.com
+  - www.google.com
+  - 8.8.8.8

@@ -1,0 +1,173 @@
+package main
+
+import (
+	"fmt"
+	"os"
+	"log"
+	"net"
+	"io/ioutil"
+	"gopkg.in/yaml.v2"
+	"time"
+
+	pinger "github.com/raintank/go-pinger"
+)
+
+const Version = "0.01"
+
+var (
+        count     int
+        timeout   time.Duration
+        interval  time.Duration
+        ipVersion string
+
+        p *pinger.Pinger
+)
+
+
+type Config struct {
+	InfluxdbServer string
+	InfluxDB string
+	InfluxUsername string
+	InfluxPassword string
+	Ipv6Allowed bool
+	PtpIpPing bool
+	ProbeInterval int
+	ProbeTimeout int
+	ProbeCount int
+	Hosts []string
+}
+
+type PingStats struct {
+        Latency  []time.Duration
+        Sent     int
+        Received int
+}
+
+func getConfigHosts(config Config) []net.IP {
+	/*
+	This function looks at the configuration we got from the Yml file 
+	does validation and DNS resolution of the hosts in the config file. 
+	Basically using the dns lookup to do validation
+	*/
+	var hosts []net.IP
+
+	for i := range(config.Hosts) {
+		resovledip, err := net.LookupIP(config.Hosts[i])
+		if err != nil {
+			fmt.Printf("Unable to resovle: %s\n", config.Hosts[i])
+		} else if len(resovledip) != 0 {
+			hosts = append(hosts, resovledip[0])
+		}
+	}
+	return hosts
+}
+
+func startup(config Config) Config {
+	/*
+	Startup function, reads the config in and prints the version number
+	*/
+	fmt.Printf("InfluxPing Version:%s\n\n", Version)
+
+	if len(os.Args) <= 1 {
+		log.Fatal("No Configuration file specified")
+	}
+	filename := os.Args[1]
+
+	source, err := ioutil.ReadFile(filename)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	err = yaml.Unmarshal(source, &config)
+	if err != nil {
+		log.Fatal(err)
+	}
+	return config
+}
+
+// func ping(host net.IP, count int, timeout time.Duration) {
+func ping(host string) {
+	// Main ping function 
+	stats, err := p.Pinger(net.ParseIP(host), count, timeout)
+	if err != nil {
+		log.Println(err)
+	}
+
+	total := time.Duration(0)
+	max   := time.Duration(0)
+	min   := timeout
+
+        for _, t := range stats.Latency {
+                total += t
+                if t < min {
+                        min = t
+                }
+                if t > max {
+                        max = t
+                }
+        }
+        avg := time.Duration(0)
+        if total > 0 {
+                avg = total / time.Duration(stats.Received)
+        }
+
+        log.Printf("%s sent=%d  received=%d  avg=%s min=%s max=%s\n", host, stats.Sent, stats.Received, avg.String(), min.String(), max.String())
+}
+
+func main() {
+	var PingHost []net.IP
+	var config Config
+
+	config = startup(config)
+
+	//var interval time.Duration = config.ProbeInterval * time.Millisecond
+	//var timeout  time.Duration = config.ProbeTimeout  * time.Millisecond
+
+	var interval time.Duration = 10000 * time.Millisecond
+	var timeout  time.Duration = 5000  * time.Millisecond
+	var count int = config.ProbeCount
+
+	PingHost = getConfigHosts(config)
+
+	p, err := pinger.NewPinger("all", 1000)
+	if err != nil {
+		log.Fatal("Unable to init pinger")
+	}
+
+	p.Start()
+
+	ticker := time.NewTicker(interval)
+	for range ticker.C {
+		for _, host := range PingHost {
+			go ping(host.String())
+		}
+	}
+}
+
+/*
+	for i := range(PingHost) {
+		pinger, err := ping.NewPinger(PingHost[i].String())
+		if err != nil {
+			log.Fatal(err)
+		}
+
+		/*
+		pinger.OnRecv = func(pkt *ping.Packet) {
+			fmt.Printf("%d bytes from %s: icmp_seq=%d time=%v\n", pkt.Nbytes, pkt.IPAddr, pkt.Seq, pkt.Rtt)
+		}
+
+		pinger.OnFinish = func(stats *ping.Statistics) {
+			fmt.Printf("\n--- %s ping statistics ---\n", stats.Addr)
+			fmt.Printf("%d packets transmitted, %d packets received, %v%% packet loss\n", stats.PacketsSent, stats.PacketsRecv, stats.PacketLoss)
+			fmt.Printf("round-trip min/avg/max/stddev = %v/%v/%v/%v\n\n", stats.MinRtt, stats.AvgRtt, stats.MaxRtt, stats.StdDevRtt)
+		}
+
+		pinger.Count    = config.ProbeCount
+		pinger.Interval = interval
+		pinger.Timeout  = timeout
+
+		pinger.SetPrivileged(true)
+
+		pinger.Run()
+	}
+	*/
