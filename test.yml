@@ -9,6 +9,6 @@ probeinterval: 30
 probetimeout: 15
 hosts:
   - 205.159.243.5
-  - cheetahfox.com
-  - www.google.com
-  - 8.8.8.8
+#  - cheetahfox.com
+#  - www.google.com
+#  - 8.8.8.8

@@ -59,7 +59,6 @@ func main() {
 	timeout = time.Second*2
 	interval = time.Second*10
 	var err error
-	var hosts []string
 	proto := "all"
 	if ipVersion == "v4" {
 		proto = "ipv4"
@@ -67,29 +66,26 @@ func main() {
 	if ipVersion == "v6" {
 		proto = "ipv6"
 	}
-	p, err = pinger.NewPinger(proto, 1000)
 
+	p, err = pinger.NewPinger(proto, 1000)
 	if err != nil {
 		log.Fatal(err)
 	}
+
+	p.Debug = true
 	p.Start()
 
 	var config Config
 	config = startup(config)
 
-	var PingHosts []net.IP
-	PingHosts = getConfigHosts(config)
-
-	for i:= range(PingHosts) {
-		hosts = append( hosts, PingHosts[i].String())
-	}
-
+	var hosts []net.IP
+	hosts = getConfigHosts(config)
 
 	ticker := time.NewTicker(interval)
 	for range ticker.C {
-		for _, host := range hosts {
-			log.Printf("pinging %s", host)
-			go ping(host)
+		for host := range hosts {
+			log.Printf("pinging %s", hosts[host].String())
+			go ping(hosts[host])
 		}
 	}
 }
@@ -137,7 +133,7 @@ func getConfigHosts(config Config) []net.IP {
 }
 
 
-func ResolveHost(host, ipversion string) (string, error) {
+func ResolveHost(host net.IP, ipversion string) (net.IP, error) {
 /*	addrs, err := net.LookupHost(host)
 	if err != nil || len(addrs) < 1 {
 		return "", fmt.Errorf("failed to resolve hostname to IP.")
@@ -164,13 +160,14 @@ func ResolveHost(host, ipversion string) (string, error) {
 	return host, nil
 }
 
-func ping(host string) {
+func ping(host net.IP) {
 	addr, err := ResolveHost(host, ipVersion)
 	if err != nil {
 		log.Println(err)
 		return
 	}
-	stats, err := p.Ping(net.ParseIP(addr), count, timeout)
+
+	stats, err := p.Ping(addr, count, timeout)
 	if err != nil {
 		log.Println(err)
 		return
